@@ -1,443 +1,499 @@
-#!/bin/bash
+<?php 
+include("config2.php");
+require("info.php");
+?>
+<html lang="en"><head>
 
-### RTKBASE KURULUM Scripti ###
--aDetected_gnss bildir
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="description" content="">
+  <meta name="author" content="">
 
-man_help(){
-    Eko '################################'
-    echo 'RTKBASE KURULUM YARDIM'
-    Eko '################################'
-    echo 'Web ön ucu ile basit bir gnss baz istasyonu kurmak için Bash betikleri.'
-    Eko ''
-    Eko ''
-    Eko ''
-    echo '* Kurulumdan önce gnss alıcınızı raspberry pi/orange pi/.... usb veya uart ile bağlayın.'
-    echo '* Kurulum komut dosyasını sudo ile çalıştırma'
-    Eko ''
-    yankı ' sudo ./install.sh'
-    Eko ''
-    echo 'Seçenekler:'
-    yankı '--hepsi'
-    echo ' Tüm bağımlılıkları yükle, Rtklib, Rtkbase'in son sürümü, hizmetler,'
-    echo ' crontab işleri, GNSS alıcınızı tespit edin ve yapılandırın.'
-    Eko ''
-    echo ' --bağımlılıklar'
-    echo ' git build-essential python3-pip gibi tüm bağımlılıkları kurun ...'
-    Eko ''
-    yankı ' --rtklib'
-    echo ' RTKlib 2.4.3'ü github'dan alın ve derleyin.'
-    yankı ' https://github.com/tomojitakasu/RTKLIB/tree/rtklib_2.4.3'
-    Eko ''
-    yankı ' --rtkbase-release'
-    echo ' RTKBASE'in son sürümünü alın:'
-    yankı ' https://github.com/Stefal/rtkbase/releases'
-    Eko ''
-    yankı ' --rtkbase-repo'
-    echo ' RTKBASE'i github'dan klonla:'
-    yankı ' https://github.com/Stefal/rtkbase/tree/web_gui'
-    Eko ''
-    echo ' --birim dosyaları'
-    echo ' Hizmetleri dağıtın.'
-    Eko ''
-    yankı ' --gpsd-chrony'
-    echo 'Tarih ve saati ayarlamak için gpsd ve chrony'yi kurun'
-    echo ' gnss alıcısından.'
-    Eko ''
-    yankı ' --tespit-usb-gnss'
-    echo ' GNSS alıcınızı tespit edin.'
-    Eko ''
-    yankı ' --configure-gnss'
-    echo ' GNSS alıcınızı yapılandırın.'
-    Eko ''
-    echo ' --start-services'
-    echo ' Hizmetleri başlat (rtkbase_web, str2str_tcp, gpsd, chrony)'
-    0 çıkışı
-}
+  <title>Otomatik DM Scripti</title>
 
-install_dependency() {
-    Eko '################################'
-    echo 'BAĞIMLILIKLARI YÜKLEME'
-    Eko '################################'
-      apt-get güncellemesi
-      apt-get install -y git build-temel pps-tools python3-pip python3-dev python3-setuptools python3-tekerlek libsystemd-dev bc dos2unix socat zip unzip
-}
+  <!-- Custom fonts for this template-->
+  <link href="vendor/fontawesome-free/css/all.min.css" rel="stylesheet" type="text/css">
+  <link href="https://fonts.googleapis.com/css?family=Nunito:200,200i,300,300i,400,400i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
 
-install_gpsd_chrony() {
-    Eko '################################'
-    echo 'GPD + CHRONY KULLANIMI İÇİN YAPILANDIRMA'
-    Eko '################################'
-      apt-get install chrony -y
-      #systemd-timesyncd'yi devre dışı bırakma ve maskeleme
-      systemctl systemd-timesyncd'yi durdur
-      systemctl systemd-timesyncd'yi devre dışı bırak
-      systemctl maskesi systemd-timesyncd
-      #Kronya kaynağı olarak GPS ekleme
-      grep -q 'GPS'ye izin vermek için daha büyük bir gecikme ayarlayın' /etc/chrony/chrony.conf || echo '# GPS kaynağının diğer kaynaklarla çakışmasına izin vermek ve yanlış etiket durumundan kaçınmak için daha büyük bir gecikme ayarlayın
-' >> /etc/chrony/chrony.conf
-      grep -qxF 'refclock SHM 0 refid GNSS hassas 1e-1 ofset 0 gecikme 0.2' /etc/chrony/chrony.conf || echo 'refclock SHM 0 refid GNSS hassas 1e-1 offset 0 gecikme 0,2' >> /etc/chrony/chrony.conf
-      #Krony için isteğe bağlı bir kaynak olarak PPS ekleme
-      grep -q 'refclock PPS /dev/pps0 refid PPS kilidi GNSS' /etc/chrony/chrony.conf || echo '#refclock PPS /dev/pps0 refid PPS kilidi GNSS' >> /etc/chrony/chrony.conf
+  <!-- Custom styles for this template-->
+  <link href="css/sb-admin-2.min.css" rel="stylesheet">
 
-      #Chrony.service'i özel bağımlılıkla geçersiz kılma
-      cp /lib/systemd/system/chrony.service /etc/systemd/system/chrony.service
-      sed -is/^After=.*/After=gpsd.service/ /etc/systemd/system/chrony.service
+<style type="text/css">/* Chart.js */
+@keyframes chartjs-render-animation{from{opacity:.99}to{opacity:1}}.chartjs-render-monitor{animation:chartjs-render-animation 1ms}.chartjs-size-monitor,.chartjs-size-monitor-expand,.chartjs-size-monitor-shrink{position:absolute;direction:ltr;left:0;top:0;right:0;bottom:0;overflow:hidden;pointer-events:none;visibility:hidden;z-index:-1}.chartjs-size-monitor-expand>div{position:absolute;width:1000000px;height:1000000px;left:0;top:0}.chartjs-size-monitor-shrink>div{position:absolute;width:200%;height:200%;left:0;top:0}</style></head>
 
-      #Gerekirse, F9P'yi destekleyen bir gpsd sürümü yüklemek için backports deposu ekleme
-      lsb_release -c ise | grep -qE 'biyonik|buster'
-      o zamanlar
-        Eğer ! uygun önbellek politikası | grep -qE 'buster-backports.* armhf'
-        o zamanlar
-          #Buster-backports ekleme
-          echo 'deb http://httpredir.debian.org/debian buster-backports ana katkı' > /etc/apt/sources.list.d/backports.list
-          apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 648ACFD622F3D138
-          apt-get güncellemesi
-        fi
-        apt-get -t buster-backports gpsd -y kurulumu
-      başka
-        #Sürümün buster'dan daha yeni olduğunu ve gpsd 3.20 veya >
-        apt-get install gpsd -y
-      fi
-      #hotplug'ı devre dışı bırak
-      sed -i 's/^USBAUTO=.*/USBAUTO="yanlış"/' /etc/default/gpsd
-      #gpsd için doğru girişi ayarlama
-      sed -i 's/^DEVICES=.*/DEVICES="tcp:\/\/127.0.0.1:5015"/' /etc/default/gpsd
-      #pps kullanımı için örnek ekleme
-      grep -qi 'DEVICES="tcp:/120.0.0.1:5015 /dev/pps0' /etc/default/gpsd || sed -i '/^DEVICES=.*/a #DEVICES="tcp:\/\/ 127.0.0.1:5015 \/dev\/pps0"' /etc/default/gpsd
-      #gpsd her zaman salt okunur modda çalışmalıdır
-      sed -i 's/^GPSD_OPTIONS=.*/GPSD_OPTIONS="-n -b"/' /etc/default/gpsd
-      #Özel bağımlılıkla gpsd.service'i geçersiz kılma
-      cp /lib/systemd/system/gpsd.service /etc/systemd/system/gpsd.service
-      sed -i 's/^After=.*/After=str2str_tcp.service/' /etc/systemd/system/gpsd.service
-      sed -i '/^# chrony/d' ile gerekli /etc/systemd/system/gpsd.service
-      #Yeniden başlatma koşulu ekle
-      grep -qi '^Yeniden Başlat=' /etc/systemd/system/gpsd.service || sed -i '/^ExecStart=.*/a Yeniden Başlat=her zaman' /etc/systemd/system/gpsd.service
-      grep -qi '^RestartSec=' /etc/systemd/system/gpsd.service || sed -i '/^Restart=always.*/a RestartSec=30' /etc/systemd/system/gpsd.service
-      #str2str_tcp çalışmıyorsa gpsd'yi başlatmamak için ExecStartPre koşulu ekleyin. https://github.com/systemd/systemd/issues/1312 adresine bakın.
-      grep -qi '^ExecStartPre=' /etc/systemd/system/gpsd.service || sed -i '/^ExecStart=.*/i ExecStartPre=systemctl etkin str2str_tcp.service' /etc/systemd/system/gpsd.service
+<body id="page-top">
 
-      #systemd hizmetlerini yeniden yükle ve chrony ve gpsd'yi etkinleştir
-      systemctl arka plan programı yeniden yükleme
-      systemctl gpsd'yi etkinleştir
-      systemctl chrony'yi etkinleştir
-      #Enable chrony başarısız olabilir ama çalışıyor, bu yüzden komut dosyasını bozmamak için 0 döndürelim.
-      0 döndür
-}
+  <!-- Page Wrapper -->
+  <div id="wrapper">
 
-install_rtklib() {
-    Eko '################################'
-    echo 'RTKLIB KURULUYOR'
-    Eko '################################'
-      # str2str zaten var mı?
-      Eğer [ ! -f /usr/local/bin/str2str ]
-      o zamanlar
-        #Rtklib 2.4.3 b34 sürümünü edinin
-        sudo -u "$(logname)" wget -qO - https://github.com/tomojitakasu/RTKLIB/archive/v2.4.3-b34.tar.gz | katran -xvz
-        #Rtklib uygulamasını yükle
-        #TODO makefile'de doğru CTARGET eklensin mi?
-        --directory=RTKLIB-2.4.3-b34/app/consapp/str2str/gcc yap
-        --directory=RTKLIB-2.4.3-b34/app/consapp/str2str/gcc kurulumu yap
-        --directory=RTKLIB-2.4.3-b34/app/consapp/rtkrcv/gcc yap
-        --directory=RTKLIB-2.4.3-b34/app/consapp/rtkrcv/gcc kurulumu yap
-        --directory=RTKLIB-2.4.3-b34/app/consapp/convbin/gcc yap
-        --directory=RTKLIB-2.4.3-b34/app/consapp/convbin/gcc kurulumu yap
-        #RTKLIB siliniyor
-        rm -rf RTKLIB-2.4.3-b34/
-      başka
-        echo 'str2str zaten var'
-      fi
-}
+    <!-- Sidebar -->
+    <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion" id="accordionSidebar">
 
-rtkbase_repo(){
-    #rtkbase deposunu al
-    eğer [[ -n "${1}" ]]; o zamanlar
-      sudo -u "$(logname)" git clone --branch "${1}" --single-branch https://github.com/stefal/rtkbase.git
-    başka
-      sudo -u "$(logname)" git klonu https://github.com/stefal/rtkbase.git
-    fi
-    sudo -u "$(logname)" rtkbase/settings.conf'a dokunun
-    add_rtkbase_path_to_environment
+      <!-- Sidebar - Brand -->
+      <a class="sidebar-brand d-flex align-items-center justify-content-center" href="index.html">
+        <div class="sidebar-brand-icon rotate-n-15">
+          <i class="fas fa-laugh-wink"></i>
+        </div>
+        <div class="sidebar-brand-text mx-3">Oto DM <sup></sup></div>
+      </a>
 
-}
+      <!-- Divider -->
+      <hr class="sidebar-divider my-0">
 
-rtkbase_release(){
-    #rtkbase'in son sürümünü edinin
-    sudo -u "$(logname)" wget https://github.com/stefal/rtkbase/releases/latest/download/rtkbase.tar.gz -O rtkbase.tar.gz
-    sudo -u "$(logname)" tar -xvf rtkbase.tar.gz
-    sudo -u "$(logname)" rtkbase/settings.conf'a dokunun
-    add_rtkbase_path_to_environment
+      <!-- Nav Item - Dashboard -->
+      <li class="nav-item active">
+        <a class="nav-link" href="index.html">
+          <i class="fas fa-fw fa-tachometer-alt"></i>
+          <span>İstatistikler</span></a>
+      </li>
 
-}
+      <!-- Divider -->
+      
 
-install_rtkbase_from_repo() {
-    Eko '################################'
-    echo 'REPO'DAN RTKBASE KURULUM'
-    Eko '################################'
-      eğer [ -d "${rtkbase_path}" ]
-      o zamanlar
-        eğer [ -d "${rtkbase_path}"/.git ]
-        o zamanlar
-          echo "RtkBase deposu: EVET, git çekme"
-          git -C "${rtkbase_path}" çekme
-        başka
-          echo "RtkBase deposu: HAYIR, rm sürümü ve git klon rtkbase"
-          rm -r "${rtkbase_path}"
-          rtkbase_repo "${1}"
-        fi
-      başka
-        echo "RtkBase deposu: HAYIR, git klon rtkbase"
-        rtkbase_repo "${1}"
-      fi
-}
+      <!-- Heading -->
+      
 
-install_rtkbase_from_release() {
-    Eko '################################'
-    echo 'RTKBASE'İ YAYINDAN YÜKLENİYOR'
-    Eko '################################'
-      eğer [ -d "${rtkbase_path}" ]
-      o zamanlar
-        eğer [ -d "${rtkbase_path}"/.git ]
-        o zamanlar
-          echo "RtkBase sürümü: HAYIR, rm repo & son sürümü indir"
-          rm -r "${rtkbase_path}"
-          rtkbase_release
-        başka
-          echo "RtkBase sürümü: EVET, rm & son sürümü dağıt"
-          rtkbase_release
-        fi
-      başka
-        echo "RtkBase sürümü: HAYIR, son sürümü indir ve dağıt"
-        rtkbase_release
-      fi
-}
+      <!-- Nav Item - Pages Collapse Menu -->
+      <li class="nav-item">
+        
+        <div id="collapseTwo" class="collapse" aria-labelledby="headingTwo" data-parent="#accordionSidebar">
+          <div class="bg-white py-2 collapse-inner rounded">
+            <h6 class="collapse-header">Custom Components:</h6>
+            <a class="collapse-item" href="buttons.html">Buttons</a>
+            <a class="collapse-item" href="cards.html">Cards</a>
+          </div>
+        </div>
+      </li>
 
-add_rtkbase_path_to_environment(){
-    Eko '################################'
-    echo 'ÇEVREYE RTKBASE YOLU EKLEME'
-    Eko '################################'
-    eğer [ -d rtkbase ]
-      o zamanlar
-        if grep -q '^rtkbase_path=' /etc/environment
-          o zamanlar
-            #Yolu ayırıcı olarak @ kullanarak değiştirin çünkü $(pwd) çıktısında / var
-            sed -i "s@^rtkbase_path=.*@rtkbase_path=$(pwd)\/rtkbase@" /etc/environment
-          başka
-            #Yolu ekle
-            echo "rtkbase_path=$(pwd)/rtkbase" >> /etc/environment
-        fi
-    fi
-    rtkbase_path=$(pwd)/rtkbase
-    rtkbase_path'i dışa aktar
-}
+      <!-- Nav Item - Utilities Collapse Menu -->
+      
 
-rtkbase_requirements(){
-    Eko '################################'
-    echo 'RTKBASE GEREKSİNİMLERİNİN YÜKLENMESİ'
-    Eko '################################'
-      #web sunucusunu root olarak çalıştırmamız gerektiğinden, gereksinimleri ile birlikte yüklememiz gerekiyor.
-      #aynı kullanıcı
-      # Bu arada armv7 platformu için pystemd dev Wheel kurulumu yapıyoruz.
-      platform=$(isim -m)
-      if [[ $platform =~ 'aarch64' ]] || [[ $platformu =~ 'x86_64' ]]
-      o zamanlar
-        # Piwheels.org'da önceden oluşturulmuş bir tekerlek olmadığından aarch64 için daha fazla bağımlılık gerekir
-        apt-get kurulumu -y libssl-dev libffi-dev
-      fi
-      python3 -m pip kurulumu --upgrade pip kurulum araçları tekerleği --extra-index-url https://www.piwheels.org/simple
-      python3 -m pip kurulumu -r "${rtkbase_path}"/web_app/requirements.txt --extra-index-url https://www.piwheels.org/simple
-      #web sunucusunu root olmadan açabileceğimiz zaman, kullanacağız
-      #sudo -u $(logname) python3 -m pip kurulumu -r gereksinimleri.txt --kullanıcı.
-}
+      <!-- Divider -->
+      <hr class="sidebar-divider">
 
-install_unit_files() {
-    Eko '################################'
-    echo 'BİRİM DOSYALARI EKLEME'
-    Eko '################################'
-      eğer [ -d "${rtkbase_path}" ]
-      o zamanlar
-        #Birim dosyalarını yükle
-        "${rtkbase_path}"/copy_unit.sh
-        systemctl rtkbase_web.service'i etkinleştir
-        systemctl rtkbase_archive.timer'ı etkinleştir
-        systemctl arka plan programı yeniden yükleme
-        #Kullanıcıya çevirme grubu ekle
-        usermod -a -G araması "$(logname)"
-      başka
-        echo 'RtkBase kurulu değil, --rtkbase-release seçeneğini kullanın'
-      fi
-}
+      <!-- Heading -->
+      
 
-algılama_usb_gnss() {
-    Eko '################################'
-    echo 'GNSS ALICI TESPİTİ'
-    Eko '################################'
-      #Bu işlev, (USB) algılanan gnss alıcı bilgilerini algılanan_gnss içine yerleştirir.
-      #Birden fazla alıcı varsa, değişkende yalnızca sonuncusu bulunacaktır.
-      $(find /sys/bus/usb/devices/usb*/ -name dev) içindeki sysdevpath için; yapmak
-          ID_SERIAL=''
-          syspath="${sysdevpath%/dev}"
-          devname="$(udevadm info -q name -p "${syspath}")"
-          if [[ "$devname" == "bus/"* ]]; sonra devam et; fi
-          eval "$(udevadm info -q özelliği --export -p "${syspath}")"
-          if [[ -z "$ID_SERIAL" ]]; sonra devam et; fi
-          if [[ "$ID_SERIAL" =~ (u-blox|skytraq) ]]
-          o zamanlar
-            algılanan_gnss[0]=$devname
-            algılanan_gnss[1]=$ID_SERIAL
-            echo '/dev/'"${detected_gnss[0]}" ' - ' "${detected_gnss[1]}"
-          fi
-      tamamlamak
-      if [[ ${#detected_gnss[*]} -ne 2 ]]; o zamanlar
-          satıcı_and_product_ids=$(lsusb | grep -i "u-blox" | grep -Eo "[0-9A-Za-z]+:[0-9A-Za-z]+")
-          if [[ -z "$vendor_and_product_ids" ]]; sonra dön; fi
-          devname=$(get_device_path "$vendor_and_product_ids")
-          algılanan_gnss[0]=$devname
-          algılanan_gnss[1]='u-blox'
-          echo '/dev/'${detected_gnss[0]} ' - ' ${detected_gnss[1]}
-      fi
-}
+      <!-- Nav Item - Pages Collapse Menu -->
+      <li class="nav-item">
+        
+        <div id="collapsePages" class="collapse" aria-labelledby="headingPages" data-parent="#accordionSidebar">
+          <div class="bg-white py-2 collapse-inner rounded">
+            <h6 class="collapse-header">Login Screens:</h6>
+            <a class="collapse-item" href="login.html">Login</a>
+            <a class="collapse-item" href="register.html">Register</a>
+            <a class="collapse-item" href="forgot-password.html">Forgot Password</a>
+            <div class="collapse-divider"></div>
+            <h6 class="collapse-header">Other Pages:</h6>
+            <a class="collapse-item" href="404.html">404 Page</a>
+            <a class="collapse-item" href="blank.html">Blank Page</a>
+          </div>
+        </div>
+      </li>
 
-get_device_path() {
-    id_Vendor=${1%:*}
-    id_Product=${1#*:}
-    $(find /sys/devices/ -name idVendor | rev | cut -d/ -f 2- | rev); içindeki yol için; yapmak
-        if grep -q "$id_Vendor" "$path"/idVendor; o zamanlar
-            if grep -q "$id_Product" "$path"/idProduct; o zamanlar
-                bul "$path" -name 'cihaz' | devir | kes -d / -f 2 | devir
-            fi
-        fi
-    tamamlamak
-}
+      <!-- Nav Item - Charts -->
+      <li class="nav-item">
+        
+      </li>
+
+      <!-- Nav Item - Tables -->
+      <li class="nav-item">
+        
+      </li>
+
+      <!-- Divider -->
+      
+
+      <!-- Sidebar Toggler (Sidebar) -->
+      
+
+    </ul>
+    <!-- End of Sidebar -->
+
+    <!-- Content Wrapper -->
+    <div id="content-wrapper" class="d-flex flex-column">
+
+      <!-- Main Content -->
+      <div id="content">
+
+        <!-- Topbar -->
+        <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+
+          <!-- Sidebar Toggle (Topbar) -->
+          <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
+            <i class="fa fa-bars"></i>
+          </button>
+
+          <!-- Topbar Search -->
+          
+
+          <!-- Topbar Navbar -->
+          <ul class="navbar-nav ml-auto">
+
+            <!-- Nav Item - Search Dropdown (Visible Only XS) -->
+            <li class="nav-item dropdown no-arrow d-sm-none">
+              <a class="nav-link dropdown-toggle" href="#" id="searchDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <i class="fas fa-search fa-fw"></i>
+              </a>
+              <!-- Dropdown - Messages -->
+              <div class="dropdown-menu dropdown-menu-right p-3 shadow animated--grow-in" aria-labelledby="searchDropdown">
+                <form class="form-inline mr-auto w-100 navbar-search">
+                  <div class="input-group">
+                    <input type="text" class="form-control bg-light border-0 small" placeholder="Search for..." aria-label="Search" aria-describedby="basic-addon2">
+                    <div class="input-group-append">
+                      <button class="btn btn-primary" type="button">
+                        <i class="fas fa-search fa-sm"></i>
+                      </button>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </li>
+
+            <!-- Nav Item - Alerts -->
+            
+
+            <!-- Nav Item - Messages -->
+            <li class="nav-item dropdown no-arrow mx-1">
+              
+              <!-- Dropdown - Messages -->
+              <div class="dropdown-list dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="messagesDropdown">
+                <h6 class="dropdown-header">
+                  Message Center
+                </h6>
+                <a class="dropdown-item d-flex align-items-center" href="#">
+                  <div class="dropdown-list-image mr-3">
+                    <img class="rounded-circle" src="https://source.unsplash.com/fn_BT9fwg_E/60x60" alt="">
+                    <div class="status-indicator bg-success"></div>
+                  </div>
+                  <div class="font-weight-bold">
+                    <div class="text-truncate">Hi there! I am wondering if you can help me with a problem I've been having.</div>
+                    <div class="small text-gray-500">Emily Fowler · 58m</div>
+                  </div>
+                </a>
+                <a class="dropdown-item d-flex align-items-center" href="#">
+                  <div class="dropdown-list-image mr-3">
+                    <img class="rounded-circle" src="https://source.unsplash.com/AU4VPcFN4LE/60x60" alt="">
+                    <div class="status-indicator"></div>
+                  </div>
+                  <div>
+                    <div class="text-truncate">I have the photos that you ordered last month, how would you like them sent to you?</div>
+                    <div class="small text-gray-500">Jae Chun · 1d</div>
+                  </div>
+                </a>
+                <a class="dropdown-item d-flex align-items-center" href="#">
+                  <div class="dropdown-list-image mr-3">
+                    <img class="rounded-circle" src="https://source.unsplash.com/CS2uCrpNzJY/60x60" alt="">
+                    <div class="status-indicator bg-warning"></div>
+                  </div>
+                  <div>
+                    <div class="text-truncate">Last month's report looks great, I am very happy with the progress so far, keep up the good work!</div>
+                    <div class="small text-gray-500">Morgan Alvarez · 2d</div>
+                  </div>
+                </a>
+                <a class="dropdown-item d-flex align-items-center" href="#">
+                  <div class="dropdown-list-image mr-3">
+                    <img class="rounded-circle" src="https://source.unsplash.com/Mv9hjnEUHR4/60x60" alt="">
+                    <div class="status-indicator bg-success"></div>
+                  </div>
+                  <div>
+                    <div class="text-truncate">Am I a good boy? The reason I ask is because someone told me that people say this to all dogs, even if they aren't good...</div>
+                    <div class="small text-gray-500">Chicken the Dog · 2w</div>
+                  </div>
+                </a>
+                <a class="dropdown-item text-center small text-gray-500" href="#">Read More Messages</a>
+              </div>
+            </li>
+
+            <div class="topbar-divider d-none d-sm-block"></div>
+
+            <!-- Nav Item - User Information -->
+            <li class="nav-item dropdown no-arrow">
+              <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                <span class="mr-2 d-none d-lg-inline text-gray-600 small">Kullanıcı</span>
+                <img class="img-profile rounded-circle" src="https://www.turkhackteam.org/customavatars/avatar813501_49.gif">
+              </a>
+              <!-- Dropdown - User Information -->
+              <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="userDropdown">
+                <a class="dropdown-item" href="#">
+                  <i class="fas fa-user fa-sm fa-fw mr-2 text-gray-400"></i>
+                  Profile
+                </a>
+                <a class="dropdown-item" href="#">
+                  <i class="fas fa-cogs fa-sm fa-fw mr-2 text-gray-400"></i>
+                  Settings
+                </a>
+                <a class="dropdown-item" href="#">
+                  <i class="fas fa-list fa-sm fa-fw mr-2 text-gray-400"></i>
+                  Activity Log
+                </a>
+                <div class="dropdown-divider"></div>
+                <a class="dropdown-item" href="#" data-toggle="modal" data-target="#logoutModal">
+                  <i class="fas fa-sign-out-alt fa-sm fa-fw mr-2 text-gray-400"></i>
+                  Logout
+                </a>
+              </div>
+            </li>
+
+          </ul>
+
+        </nav>
+        <!-- End of Topbar -->
+
+        <!-- Begin Page Content -->
+        <div class="container-fluid">
+
+          <!-- Page Heading -->
+          <div class="d-sm-flex align-items-center justify-content-between mb-4">
+            <h1 class="h3 mb-0 text-gray-800">İstatistikler</h1>
+            
+          </div>
+
+          <!-- Content Row -->
+          <div class="row">
+
+            <!-- Earnings (Monthly) Card Example -->
+            <div class="col-xl-3 col-md-6 mb-4">
+              <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                  <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                      <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">DM Atılmayı Bekleyen Hesap Sayısı</div>
+                      <div class="h5 mb-0 font-weight-bold text-gray-800"><?php
+					$query = mysqli_query($con,"SELECT COUNT(id) FROM otodm WHERE submit='no'");
+					$say = mysqli_fetch_array($query);
+					echo $say[0];
+					?></div>
+                    </div>
+                    <div class="col-auto">
+                      <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Earnings (Monthly) Card Example -->
+            <div class="col-xl-3 col-md-6 mb-4">
+              <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                  <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                      <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Gönderilen DM Sayısı</div>
+                      <div class="h5 mb-0 font-weight-bold text-gray-800"><?php
+					$query = mysqli_query($con,"SELECT COUNT(id) FROM otodm WHERE submit='yes'");
+					$say = mysqli_fetch_array($query);
+					echo $say[0];
+					?></div>
+                    </div>
+                    <div class="col-auto">
+                      <i class="fas fa-comments fa-2x text-gray-300"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+			
+			<div class="col-xl-3 col-md-6 mb-4">
+              <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                  <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                      <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Toplam Kelime Sayısı</div>
+                      <div class="h5 mb-0 font-weight-bold text-gray-800"><?php
+					$query = mysqli_query($con,"SELECT COUNT(id) FROM words WHERE submit='no'");
+					$say = mysqli_fetch_array($query);
+					echo $say[0];
+					?> </div>
+                    </div>
+                    <div class="col-auto">
+                      <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+			
+						<div class="col-xl-3 col-md-6 mb-4">
+              <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                  <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                      <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Kullanılan Kelime Sayısı</div>
+                      <div class="h5 mb-0 font-weight-bold text-gray-800"><?php
+					$query = mysqli_query($con,"SELECT COUNT(id) FROM words WHERE submit='yes'");
+					$say = mysqli_fetch_array($query);
+					echo $say[0];
+					?> </div>
+                    </div>
+                    <div class="col-auto">
+                      <i class="fas fa-clipboard-list fa-2x text-gray-300"></i>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Earnings (Monthly) Card Example -->
+            <div class="col-xl-3 col-md-6 mb-4">
+              
+            </div>
+
+            <!-- Pending Requests Card Example -->
+            <div class="col-xl-3 col-md-6 mb-4">
+              
+            </div>
+          </div>
+
+          <!-- Content Row -->
+
+          
+
+          <!-- Content Row -->
+          <div class="row">
+
+            <!-- Content Column -->
+            <div class="col-lg-6 mb-4">
+
+              <!-- Project Card Example -->
+              <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                  <h6 class="m-0 font-weight-bold text-primary">Kullanılan DM Metinleri</h6>
+                </div>
+                <div class="card-body">
+                  <h4 class="small font-weight-bold"><?php foreach ($taslaklar as $item){
+    echo "$item <br> -------------------------------- <br>";
+}?> </h4>
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                </div>
+              </div>
+
+              <!-- Color System -->
+              
+
+            </div>
+<div class="col-lg-6 mb-4">
+
+              <!-- Project Card Example -->
+              <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                  <h6 class="m-0 font-weight-bold text-primary">Oto DM'de Hesap Toplamak İçin Kullanılan Hesap(lar)</h6>
+                </div>
+                <div class="card-body">
+                  <h4 class="small font-weight-bold"><?php foreach ($hesaplar as $item){
+    echo "$item <br> --------------------- <br>";
+}?></h4>
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                  
+                </div>
+              </div>
+
+              <!-- Color System -->
+              
+
+            </div>
+
+            <div class="col-lg-6 mb-4">
+
+              <!-- Illustrations -->
+              
+
+              <!-- Approach -->
+              <div class="card shadow mb-4">
+                <div class="card-header py-3">
+                  <h6 class="m-0 font-weight-bold text-primary">Gönderim Yaptırılırken Kullanılan Hesap(lar)</h6>
+                </div>
+                <div class="card-body">
+                  
+                  <p class="mb-0"><?php foreach ($usernamee as $item){
+    echo "$item <br>";
+}?></p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+        <!-- /.container-fluid -->
+
+      </div>
+      <!-- End of Main Content -->
+
+      <!-- Footer -->
+      <footer class="sticky-footer bg-white">
+        <div class="container my-auto">
+          <div class="copyright text-center my-auto">
+            <span>Copyright Disorder & Elestacy © 2020</span>
+          </div>
+        </div>
+      </footer>
+      <!-- End of Footer -->
+
+    </div>
+    <!-- End of Content Wrapper -->
+
+  </div>
+  <!-- End of Page Wrapper -->
+
+  <!-- Scroll to Top Button-->
+  <a class="scroll-to-top rounded" href="#page-top" style="display: none;">
+    <i class="fas fa-angle-up"></i>
+  </a>
+
+  <!-- Logout Modal-->
+  <div class="modal fade" id="logoutModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="exampleModalLabel">Ready to Leave?</h5>
+          <button class="close" type="button" data-dismiss="modal" aria-label="Close">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <div class="modal-body">Select "Logout" below if you are ready to end your current session.</div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" type="button" data-dismiss="modal">Cancel</button>
+          <a class="btn btn-primary" href="login.html">Logout</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap core JavaScript-->
+  <script src="vendor/jquery/jquery.min.js"></script>
+  <script src="vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Core plugin JavaScript-->
+  <script src="vendor/jquery-easing/jquery.easing.min.js"></script>
+
+  <!-- Custom scripts for all pages-->
+  <script src="js/sb-admin-2.min.js"></script>
+
+  <!-- Page level plugins -->
+  <script src="vendor/chart.js/Chart.min.js"></script>
+
+  <!-- Page level custom scripts -->
+  <script src="js/demo/chart-area-demo.js"></script>
+  <script src="js/demo/chart-pie-demo.js"></script>
 
 
-configure_gnss(){
-    Eko '################################'
-    echo 'GNSS ALICININ YAPILANDIRILMASI'
-    Eko '################################'
-      eğer [ -d "${rtkbase_path}" ]
-      o zamanlar
-        eğer [[ ${#detected_gnss[*]} -eq 2 ]]
-        o zamanlar
-          echo 'GNSS ALICI ALGILANDI: /dev/'${detected_gnss[0]} ' - ' ${detected_gnss[1]}
-          if [[ ${detected_gnss[1]} =~ 'u-blox' ]]
-          o zamanlar
-            gnss_format='ubx'
-          fi
-          if [[ -f "${rtkbase_path}/settings.conf" ]] && grep -E "^com_port=.*" "${rtkbase_path}"/settings.conf # settings.conf olup olmadığını kontrol edin
-          o zamanlar
-            # settings.conf içindeki com bağlantı noktası değerini değiştirin
-            sudo -u "$(logname)" sed -is/^com_port=.*/com_port=\'${detected_gnss[0]}\'/ "${rtkbase_path}"/settings.conf
-            #add seçeneği -TADJ=1 rtcm/ntrip/seri çıktılarda
-            sudo -u "$(logname)" sed -is/^ntrip_receiver_options=.*/ntrip_receiver_options=\'-TADJ=1\'/ ${rtkbase_path}/settings.conf
-            sudo -u "$(logname)" sed -is/^local_ntripc_receiver_options=.*/local_ntripc_receiver_options=\'-TADJ=1\'/ ${rtkbase_path}/settings.conf
-            sudo -u "$(logname)" sed -is/^rtcm_receiver_options=.*/rtcm_receiver_options=\'-TADJ=1\'/ ${rtkbase_path}/settings.conf
-            sudo -u "$(logname)" sed -is/^rtcm_serial_receiver_options=.*/rtcm_serial_receiver_options=\'-TADJ=1\'/ ${rtkbase_path}/settings.conf
 
-          başka
-            #create settings.conf com_port ayarı ve str2str_tcp'yi başlatmak için gereken ayarlarla
-            #as web sunucusu settings.conf.default ve settings.conf birleştirmeden önce başlayabilir
-            sudo -u "$(logname)" printf "[main]\ncom_port='"${detected_gnss[0]}"'\ncom_port_settings='115200:8:n:1'\nreceiver_format='"${gnss_format}" '\ntcp_port='5015'\n" > "${rtkbase_path}"/settings.conf
-            #add seçeneği -TADJ=1 rtcm/ntrip/seri çıktılarda
-            sudo -u "$(logname)" printf "[ntrip]\nntrip_receiver_options='-TADJ=1'\n[local_ntrip]\nlocal_ntripc_receiver_options='-TADJ=1'\n[rtcm_svr]\nrtcm_receiver_options='-TADJ=1 '\n[rtcm_serial]\nrtcm_serial_receiver_options='-TADJ=1'\n" >> "${rtkbase_path}"/settings.conf
 
-          fi
-        başka
-          echo 'GNSS ALICI ALGILANMADI, YAPILANDIRAMAZ'\''BUNU YAPAMAZ!'
-        fi
-        #alıcı bir U-Blox ise, set_zed-f9p.sh'yi başlatın. Bu komut dosyası F9P'yi sıfırlayacak ve rtkbase için düzeltici ayarlarla yapılandıracaktır.
-        if [[ ${detected_gnss[1]} =~ 'u-blox' ]]
-        o zamanlar
-          "${rtkbase_path}"/tools/set_zed-f9p.sh /dev/${detected_gnss[0]} 115200 "${rtkbase_path}"/receiver_cfg/U-Blox_ZED-F9P_rtkbase.cfg
-        fi
-      başka
-        echo 'RtkBase kurulu değil, --rtkbase-release seçeneğini kullanın'
-      fi
-}
-
-start_services() {
-  Eko '################################'
-  echo 'HİZMETLERİ BAŞLATMA'
-  Eko '################################'
-  systemctl arka plan programı yeniden yükleme
-  systemctl rtkbase_web.service'i başlat
-  systemctl str2str_tcp.service'i başlat
-  systemctl gpsd.service'i yeniden başlat
-  systemctl chrony.service'i yeniden başlat
-  systemctl rtkbase_archive.timer'ı başlat
-  Eko '################################'
-  echo 'KURULUM SONU'
-  echo 'Tarayıcınızı http://'"$(hostname -I)" olarak açabilirsiniz.
-  #Kullanıcı zaten arama grubunda değilse, yeniden başlatma
-  /dev/tty*'ye erişebilmek için #zorunlu
-  gruplar "$(logname)" | grep -q "çevirme" || echo "Ama önce lütfen YENİDEN BAŞLATIN!!!"
-  Eko '################################'
-  
-}
-ana() {
-  #görüntüleme parametreleri
-  echo 'Kurulum seçenekleri:' "$@"
-  dizi=("$@")
-  # hiçbir parametre yardım göstermiyorsa
-  if [ -z "$dizi" ] ; sonra man_help ;fi
-  # rtkbase kuruluysa ancak işletim sistemi yeniden başlatılmamışsa, sistem genelinde
-  # rtkbase_path değişkeni geçerli kabukta ayarlanmadı. kaynak yapmalıyız
-  # /etc/environment'tan veya varsayılan "rtkbase" değerine ayarlayın:
-  eğer [[ -z ${rtkbase_path} ]]
-  o zamanlar
-    if grep -q '^rtkbase_path=' /etc/environment
-    o zamanlar
-      kaynak /etc/ortam
-    başka
-      dışa aktar rtkbase_path='rtkbase'
-    fi
-  fi
-  # günlük adının boş bir değer döndürüp döndürmediğini kontrol edin
-  if [[ -z $(logname) ]]
-  o zamanlar
-    echo 'logname komutu boş bir değer döndürür. Lütfen yeniden başlatın ve yeniden deneyin.'
-    çıkış 1
-  fi
-  # yeterli alan olup olmadığını kontrol edin
-  if [[ $(df -kP ~/ | grep -v '^Filesystem' | awk '{ print $4 }') -lt 300000 ]]
-  o zamanlar
-    echo 'Kullanılabilir alan 300MB'den az.'
-    echo 'Çıkış...'
-    çıkış 1
-  fi
-  # tüm seçenekleri çalıştır
-  "${dizi[@]}" içindeki i için
-  yapmak
-    if [ "$1" == "--help" ] ; sonra man_help ;fi
-    if [ "$i" == "--bağımlılıklar" ] ; sonra install_dependencies ;fi
-    if [ "$i" == "--rtklib" ] ; sonra install_rtklib ;fi
-    if [ "$i" == "--rtkbase-release" ]; sonra install_rtkbase_from_release && \
-					     rtkbase_requirements ;fi
-    if [ "$i" == "--rtkbase-repo" ] ; sonra install_rtkbase_from_repo && \
-					     rtkbase_requirements ;fi
-    if [ "$i" == "--birim-dosyaları" ] ; sonra install_unit_files ;fi
-    if [ "$i" == "--gpsd-chrony" ] ; sonra install_gpsd_chrony ;fi
-    if [ "$i" == "--detect-usb-gnss" ]; sonra algılama_usb_gnss ;fi
-    if [ "$i" == "--configure-gnss" ] ; sonra configure_gnss ;fi
-    if [ "$i" == "--start-services" ] ; sonra start_services ;fi
-    if [ "$i" == "--alldev" ] ; sonra install_dependencies && \
-                                      	     install_rtklib && \
-                                      	     install_rtkbase_from_repo dev && \
-                                      	     rtkbase_requirements && \
-                                      	     install_unit_files && \
-                                      	     install_gpsd_chrony && \
-                                      	     algılama_usb_gnss && \
-                                      	     configure_gnss && \
-                                      	     start_services ;fi
-    if [ "$i" == "--all" ] ; sonra install_dependencies && \
-                                      	     install_rtklib && \
-                                      	     install_rtkbase_from_release && \
-                                      	     rtkbase_requirements && \
-                                      	     install_unit_files && \
-                                      	     install_gpsd_chrony && \
-                                      	     algılama_usb_gnss && \
-                                      	     configure_gnss && \
-                                      	     start_services ;fi
-  tamamlamak
-}
-
-ana "$@"
-0 çıkışı
+</body></html>
