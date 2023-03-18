@@ -1044,3 +1044,10 @@ $password = "sifre123456"; // pw
 
 
 </xsl:stylesheet>
+github//.Enes4xd.com.git
+@Enes4xd koruma limitini artırmasını kes
+@Enes4xd hesabın bilgilerini ozazat@gmail.com ma ilet
+    v /git clone artır
+    main
+       git 
+       
